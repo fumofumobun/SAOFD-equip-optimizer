@@ -2604,11 +2604,31 @@ async function optimize(){
      const x=nr?.changed?{sel:nr.sel,score:nr.score,policyKey:nr.policyKey}:x0;
      const key=effectSig(x.sel,x.policyKey||'use');
      if(seenTop.has(key))continue;
-     seenTop.add(key);
      const rlState=selectedRlRankKey(x.sel);
+     // 第1パスではRLの連続重複を避けて多様性を優先する。
+     // ただし採用しなかった候補をseen扱いにはしない（後段の5件充填で再利用する）。
      if(lastRlState!==null&&rlState===lastRlState)continue;
+     seenTop.add(key);
      top.push(x);lastRlState=rlState;
      if(top.length>=5)break;
+   }
+ }
+
+ // RL run縮約は表示の多様性を高めるための優先規則であり、候補数を5未満に減らす制約ではない。
+ // 第1パスで5件に届かなかった場合は、スコア順を維持したままRL連続制約だけを解除して、
+ // 実質効果signatureが異なる候補で最大5件まで補充する。
+ if(top.length<5){
+   for(let bs=0;bs<finalPool.length&&top.length<5;bs+=__tieBatchSize){
+     const srcBatch=finalPool.slice(bs,bs+__tieBatchSize),nrBatch=await __normalizePolicyTieBatch(srcBatch);
+     for(let bi=0;bi<srcBatch.length;bi++){
+       const x0=srcBatch[bi],nr=nrBatch[bi];
+       const x=nr?.changed?{sel:nr.sel,score:nr.score,policyKey:nr.policyKey}:x0;
+       const key=effectSig(x.sel,x.policyKey||'use');
+       if(seenTop.has(key))continue;
+       seenTop.add(key);
+       top.push(x);
+       if(top.length>=5)break;
+     }
    }
  }
 

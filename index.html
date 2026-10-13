@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>SAOFD 装備簡易評価・最適装備探索機 v281</title>
+<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>SAOFD 装備簡易評価・最適装備探索機 v286</title>
 <style>
 :root{--bg:#071321;--p:#0d1c2f;--p2:#10243c;--line:#23415f;--t:#e8f2ff;--m:#91a9c4;--a:#35c9ff;--g:#7ff0b0;--w:#ffd66b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#06101d,#091b2e 55%,#06111e);color:var(--t);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif}.wrap{max-width:1500px;margin:auto;padding:18px}.top{display:flex;gap:12px;align-items:end;justify-content:space-between;flex-wrap:wrap}.title{font-size:25px;letter-spacing:.04em}.sub,.note,.small,.foot{color:var(--m);font-size:11px;line-height:1.55}.grid{display:grid;grid-template-columns:390px minmax(520px,1fr) 390px;gap:14px;margin-top:14px}.panel{background:rgba(13,28,47,.95);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}.panel h2{font-size:15px;color:#7de2ff;margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:8px}.section{margin-top:14px}.section:first-child{margin-top:0}.row{display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;margin:7px 0}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.label{font-size:12px;color:#b9cae0}input,select,button{font:inherit}input,select{width:100%;background:#081729;color:var(--t);border:1px solid #2b4967;border-radius:6px;padding:7px 8px}button{cursor:pointer}.btns{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #2e6285;background:#0d3049;color:#e9f8ff;border-radius:7px;padding:8px 12px}.btn:hover{background:#12415f}.btn.gold{background:#72551a;border-color:#d7a93d}.btn:disabled{opacity:.5;cursor:not-allowed}.check{display:flex;align-items:center;gap:7px;font-size:12px;color:#c7d7ea;margin:5px 0}.check input{width:auto}.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.slot{background:#09182a;border:1px solid #1e3a55;border-radius:7px;padding:7px}.slothead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:5px}.slotname{font-size:11px;color:#7ddfff}.badge{font-size:10px;color:#071321;background:#7de2ff;border-radius:10px;padding:2px 6px}.metric{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric .box{background:#0a1728;border:1px solid #1d3853;border-radius:8px;padding:9px}.metric b{display:block;font-size:18px;margin-top:2px}.metric .box:first-child b{color:var(--g);font-size:25px}.formula{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.65;color:#bdd2e9;background:#071525;border:1px solid #1d3853;padding:9px;border-radius:7px;white-space:pre-wrap;overflow:auto}.effect-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.effect{background:#09182a;border:1px solid #1b3650;border-radius:6px;padding:6px;font-size:11px}.effect strong{color:#344054}.rankitem{padding:8px;border-bottom:1px solid #1b3650}.rankitem:last-child{border-bottom:0}.score{color:var(--g);font-weight:700}.right{float:right}.hr{height:1px;background:#1d3853;margin:12px 0}.warn{color:var(--w)}@media(max-width:1150px){.grid{grid-template-columns:1fr 1fr}.grid>.panel:last-child{grid-column:1/-1}}@media(max-width:760px){.wrap{padding:9px}.grid{grid-template-columns:1fr}.grid>.panel:last-child{grid-column:auto}.slots,.row3{grid-template-columns:1fr}.row{grid-template-columns:1fr 110px}.metric,.effect-list{grid-template-columns:1fr 1fr}}
 
@@ -661,12 +661,27 @@ function finalR4RankLabel(sel){
  const e=byId(sel?.R4);
  return e?.type==='RL'?e.name:'エピックリング';
 }
-// Score-sorted global grouping; do not reintroduce the same exact triplet
-// even when unrelated groups appear between two candidates.
+// v286: BL and the three talisman slots do not create distinct *display*
+// builds.  Compare every other equipped slot by its actual effect ID.
+// Keep the v282 RL/NL/BL search classes for diversification, but collapse
+// their results when only BL/T4/T21/T22 differ.  The first survivor in the
+// exact-score-sorted final pool is the highest-scoring representative.
+const __RANK_COLLAPSED_SLOTS=new Set(['BL','T4','T21','T22','Ext']);
+function finalEquipmentCollapseKey(sel){
+ return JSON.stringify(slotDefs.filter(sd=>!__RANK_COLLAPSED_SLOTS.has(sd.id))
+   .map(sd=>[sd.id,sel?.[sd.id]??null]));
+}
+// Exact duplicates and display-equivalent builds must never reappear, even
+// when another RL/NL/BL class occurs between the two candidates.
 function appendTopEquipmentGroup(top,candidate,state){
  const exactKey=fastSelKey(candidate.sel);
  if(state.seenExact.has(exactKey))return false;
  state.seenExact.add(exactKey);
+ const collapseKey=finalEquipmentCollapseKey(candidate.sel);
+ if(state.seenCollapsed.has(collapseKey))return false;
+ // Reserve this layout at its highest exact score, even if its legacy
+ // RL/NL/BL class has already been represented by a stronger layout.
+ state.seenCollapsed.add(collapseKey);
  const group=finalEquipmentRankGroup(candidate.sel);
  if(state.seenGroups.has(group))return false;
  state.seenGroups.add(group);
@@ -3393,7 +3408,7 @@ async function optimize(){
    if(nl?.type==='NL'&&!gainIsPositive('N4',null))return false;
    return true;
  };
- const top=[],__rankState={seenExact:new Set(),seenGroups:new Set()};
+ const top=[],__rankState={seenExact:new Set(),seenGroups:new Set(),seenCollapsed:new Set()};
  const __policyTieNormalizeCache=new Map();
  const __tieSameScore=(a,b)=>{const scale=Math.max(1,Math.abs(a||0),Math.abs(b||0));return Math.abs((a||0)-(b||0))<=1e-10*scale;};
  // 同点正規化を1候補ずつメインスレッドでcalc()するのではなく、同一枠の置換候補を
@@ -3542,7 +3557,7 @@ async function optimize(){
    }
    finalPool.sort((a,b)=>(b.score-a.score)||(countExperienceEffects(b.sel)-countExperienceEffects(a.sel))||(policyInactiveEffectCount(a.sel,a.policyKey||'use')-policyInactiveEffectCount(b.sel,b.policyKey||'use')));
    top.length=0;
-   const rerunState={seenExact:new Set(),seenGroups:new Set()};
+   const rerunState={seenExact:new Set(),seenGroups:new Set(),seenCollapsed:new Set()};
    for(let bs=0;bs<finalPool.length&&top.length<__V281_MAX_RESULTS;bs+=__tieBatchSize){
      const srcBatch=finalPool.slice(bs,bs+__tieBatchSize),nrBatch=await __normalizePolicyTieBatch(srcBatch);
      for(let bi=0;bi<srcBatch.length;bi++){
@@ -3560,7 +3575,7 @@ async function optimize(){
    const certifiedTop=top.filter(x=>__v264Certified.has(optimizeSelKey(x.sel)));
    top.splice(0,top.length,...certifiedTop);
  }
- window.__v275OptDiagnostics={replacements:__v275Replacements,supersededCount:__v275Superseded.size,beamGroupSeedCount:__v276BeamRepresentatives.length,allDisplayedCertified:!__v264Uncertified,groupSlots:['RLまたは一般R','NLまたは一般N','BL'],maxResults:__V281_MAX_RESULTS,additionalClassSeeds:__v282ExtraClasses.length,classDiversification:window.__v283Diversification,distinctEffectsMustIncreaseDamage:true};
+ window.__v275OptDiagnostics={replacements:__v275Replacements,supersededCount:__v275Superseded.size,beamGroupSeedCount:__v276BeamRepresentatives.length,allDisplayedCertified:!__v264Uncertified,groupSlots:['RLまたは一般R','NLまたは一般N','BL'],collapsedDisplaySlots:['BL','T4','T21','T22'],maxResults:__V281_MAX_RESULTS,additionalClassSeeds:__v282ExtraClasses.length,classDiversification:window.__v283Diversification,distinctEffectsMustIncreaseDamage:true};
  // No forced padding: show only exact-certified candidates within the top twenty.
  setOptProgress(99,`最終結果を整理中…（厳密再評価省略 ${exactCacheHit.toLocaleString()}件）`);
  __assertOptStable();
@@ -3632,7 +3647,7 @@ async function optimize(){
    selections=Object.assign({},top[0].sel);sanitizeSelectionSlots(selections,locks);
    renderSlots();update();
    setOptProgress(100,'探索完了');
-   $('optStatus').textContent=`探索完了：${slotCount-1}装備枠を探索。最良 ${intDisplay(top[0].score)} 総ダメージ / RL・NL・BLの組合せごとに局所改善した上位${top.length}件（最大20件）`;
+   $('optStatus').textContent=`探索完了：${slotCount-1}装備枠を探索。最良 ${intDisplay(top[0].score)} 総ダメージ / BL・Talis差分を縮約した上位${top.length}件（最大20件）`;
    window.extRankCache.clear();
  }else{
    setOptProgress(100,'探索終了（結果なし）');
